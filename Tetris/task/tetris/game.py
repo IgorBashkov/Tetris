@@ -33,15 +33,7 @@ class Piece:
         self.cursor_y = -1
         self.board_x_left = 0
         self.board_x_right = 0
-        self.max_y = 10
-        self.board_y = 10
-        self.floor = self.size[0]
-        self.real_width = self.size[1]
         self.turn()
-        # self.get_board_y()
-
-    def get_board_y(self):
-        self.board_y = self.max_y - self.floor - 1
 
     def turn(self):
         self.array[np.nonzero(self.array)] = False
@@ -49,9 +41,6 @@ class Piece:
             self.array[i] = True
         self.board_x_left = 0 - min(np.nonzero(self.array)[1])
         self.board_x_right = self.size[1] - max(np.nonzero(self.array)[1]) - 1
-        self.floor = max(np.nonzero(self.array)[0])
-        self.real_width = max(np.nonzero(self.array)[1]) - min(np.nonzero(self.array)[1])
-        self.get_board_y()
         self.down()
 
     def left(self):
@@ -65,18 +54,7 @@ class Piece:
         self.down()
 
     def down(self):
-        if self.cursor_y != self.board_y:
-            self.cursor_y += 1
-
-    """def move(self, direction):
-        move_dict = {
-            'rotate': self.turn,
-            'down': self.down,
-            'left': self.left,
-            'right': self.right,
-        }
-        if self.cursor_y != self.board_y:
-            move_dict[direction]()"""
+        self.cursor_y += 1
 
     def __repr__(self):
         return '\n'.join([' '.join(map(lambda e: '-' if not e else '0', i)) for i in self.array])
@@ -92,18 +70,10 @@ class Field:
         self.stop = False
         self.over = False
 
-    def add_piece(self, piece):
-        self.piece = piece
-        self.stop = False
-        self.piece.max_y = self.height
-        self.piece.get_board_y()
-        self.update()
-
-    def clear_field(self):
-        self.field[np.nonzero(self.field)] = False
-
     def add_piece_from_input(self):
-        self.add_piece(Piece(input()))
+        self.piece = Piece(input())
+        self.stop = False
+        self.update()
 
     def command(self, command):
         move_dict = {
@@ -112,27 +82,34 @@ class Field:
             'left': self.piece.left,
             'right': self.piece.right,
             'piece': self.add_piece_from_input,
+            'break': self.remove_complete,
         }
-        if not self.stop or command == 'piece':  # self.piece.cursor_y != self.piece.board_y:
-            move_dict[command]()
+        if not self.stop or command in ('piece', 'break'):
+            move_dict.get(command, self.pass_method)()
+        self.update()
 
     def remove_complete(self):
         for n, line in enumerate(self.result):
-            if np.zeros(line):
-                pass
+            if line.all():
+                self.result[n] = False
+                self.result[1:n+1] = self.result[0:n]
 
+    @staticmethod
+    def pass_method():
+        pass
 
     def update(self):
-        self.clear_field()
+        self.field[:] = False
         if not self.stop:
+            # this loop require rewriting
             for n, i in enumerate(range(self.piece.cursor_y, self.piece.cursor_y + self.piece.size[0])):
                 for m, j in enumerate(range(self.piece.cursor_x, self.piece.cursor_x + self.piece.size[1])):
                     self.field[i % self.height, j % self.width] = self.piece.array[n, m]
-        if np.nonzero(self.field[-1])[0].size > 0 or np.nonzero(self.field[:-1] & self.result[1:])[0].size > 0:
+        if self.field[-1].any() or (self.field[:-1] & self.result[1:]).any():
             self.result = self.field | self.result
-            self.clear_field()
+            self.field[:] = False
             self.stop = True
-            if np.nonzero(self.result[0])[0].size > 0:
+            if self.result[0].any():
                 self.over = True
 
     def __repr__(self):
@@ -140,18 +117,11 @@ class Field:
 
 
 def run():
-    field_size = tuple(map(int, input().split()))
-    # print()
-
-    field = Field(*field_size)
-
+    field = Field(*tuple(map(int, input().split())))
     print(field, end='\n\n')
-    # field.add_piece_from_input()
-    # print(field, end='\n\n')
     command = input()
     while command != 'exit' and not field.over:
         field.command(command)
-        field.update()
         print(field, end='\n\n', sep='')
         command = input()
     if field.over:
